@@ -156,9 +156,9 @@
 
     function getProp(obj, propName) {
       if (!obj) return '';
-      const target = propName.toLowerCase();
+      const target = String(propName).toLowerCase().trim();
       for (let key in obj) {
-        if (key.toLowerCase() === target) {
+        if (String(key).toLowerCase().trim() === target) {
           return obj[key];
         }
       }
@@ -198,26 +198,34 @@
       if (statusText) statusText.innerText = "Buscando dados...";
       if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-blue-500 pulse-amber";
 
-      window.handleAppsScriptResponse = function(response) {
-        let parsedData = Array.isArray(response) ? response : (response && response.data ? response.data : []);
-        rawData = parsedData;
-        if (statusText) statusText.innerText = "Conectado ao Sheets (Ao Vivo)";
-        if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-emerald-500";
-        updateMetrics();
-        renderTable();
-      };
+      const callbackName = 'cb_' + Math.round(Math.random() * 1000000);
+      
+      window[callbackName] = function(data) {
+        delete window[callbackName];
+        const scriptElem = document.getElementById(callbackName);
+        if (scriptElem) scriptElem.remove();
 
-      const oldScript = document.getElementById('jsonp-script');
-      if (oldScript) oldScript.remove();
+        if (Array.isArray(data)) {
+          rawData = data;
+          if (statusText) statusText.innerText = "Conectado ao Sheets (Ao Vivo)";
+          if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-emerald-500";
+          updateMetrics();
+          renderTable();
+        } else {
+          if (statusText) statusText.innerText = "Erro no Formato dos Dados";
+          if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-rose-500";
+        }
+      };
 
       const script = document.createElement('script');
-      script.id = 'jsonp-script';
-      script.src = `${url}?action=getProtocolos&callback=handleAppsScriptResponse`;
+      script.id = callbackName;
+      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
       script.onerror = function() {
+        delete window[callbackName];
         if (statusText) statusText.innerText = "Erro ao Conectar (Verifique Permissões)";
         if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-rose-500";
-        renderTable();
       };
+
       document.body.appendChild(script);
     }
 
