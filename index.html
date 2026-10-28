@@ -42,19 +42,6 @@
   <!-- Conteúdo Principal -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-    <!-- Card de Alerta de Movimentações -->
-    <div id="alert-banner" class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
-      <div class="flex items-center space-x-3">
-        <div class="p-2 bg-amber-100 rounded-lg text-amber-700">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-amber-900" id="alert-title">Painel de Alertas</h3>
-          <p class="text-xs text-amber-700 mt-0.5" id="alert-subtitle">Buscando atualizações dos protocolos no Google Sheets...</p>
-        </div>
-      </div>
-    </div>
-
     <!-- Indicadores / Métricas -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass-card rounded-xl p-5">
@@ -101,6 +88,7 @@
               <th class="px-4 py-3">Analista</th>
               <th class="px-4 py-3">Exigência</th>
               <th class="px-4 py-3">Última Atualização</th>
+              <th class="px-4 py-3 text-right">Acesso / Portal</th>
             </tr>
           </thead>
           <tbody id="protocol-table-body" class="divide-y divide-slate-200 bg-white">
@@ -114,7 +102,8 @@
 
   <script>
     const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlSQMaUiONPFbe1pLueb6rWKrEOoeXHiFJOcMlzVJQGqipzyYyxy9NITkELVDinqfQ/exec";
-    let rawData = [];
+    let protocolosData = [];
+    let portaisData = [];
 
     function getProp(obj, propName) {
       if (!obj) return '';
@@ -136,13 +125,15 @@
 
       const cbName = 'cb_' + Math.floor(Math.random() * 10000000);
       
-      window[cbName] = function(data) {
+      window[cbName] = function(response) {
         delete window[cbName];
         const scriptElem = document.getElementById(cbName);
         if (scriptElem) scriptElem.remove();
 
-        if (Array.isArray(data)) {
-          rawData = data;
+        if (response && response.protocolos) {
+          protocolosData = response.protocolos;
+          portaisData = response.portais || [];
+          
           if (statusText) statusText.innerText = "Conectado ao Sheets (Ao Vivo)";
           if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-emerald-500";
           updateMetrics();
@@ -168,20 +159,46 @@
       document.body.appendChild(script);
     }
 
-    function updateMetrics() {
-      const total = rawData.length;
+    function encontrarUrlPortal(prefeitura, empresa) {
+      const pClean = String(prefeitura).trim().toLowerCase();
+      const eClean = String(empresa).trim().toLowerCase();
 
-      const moved = rawData.filter(d => {
+      const match = portaisData.find(p => {
+        const pPortal = String(getProp(p, 'prefeitura') || '').trim().toLowerCase();
+        const ePortal = String(getProp(p, 'empresa') || '').trim().toLowerCase();
+        return pPortal === pClean && ePortal === eClean;
+      });
+
+      if (match) {
+        return getProp(match, 'url_login') || getProp(match, 'url') || getProp(match, 'link');
+      }
+
+      const matchPref = portaisData.find(p => {
+        const pPortal = String(getProp(p, 'prefeitura') || '').trim().toLowerCase();
+        return pPortal === pClean;
+      });
+
+      if (matchPref) {
+        return getProp(matchPref, 'url_login') || getProp(matchPref, 'url') || getProp(matchPref, 'link');
+      }
+
+      return '#';
+    }
+
+    function updateMetrics() {
+      const total = protocolosData.length;
+
+      const moved = protocolosData.filter(d => {
         const val = String(getProp(d, 'notificar') || '').toUpperCase();
         return val === 'SIM' || val === 'TRUE' || val === '1';
       }).length;
 
-      const exig = rawData.filter(d => {
+      const exig = protocolosData.filter(d => {
         const st = String(getProp(d, 'exigência') || getProp(d, 'exigencia')).toUpperCase();
         return st && st !== 'NÃO' && st !== 'NAO' && st !== '' && st !== '-';
       }).length;
 
-      const aprov = rawData.filter(d => {
+      const aprov = protocolosData.filter(d => {
         const st = String(getProp(d, 'status')).toUpperCase();
         return st.includes('APROV') || st.includes('CONCLU') || st.includes('DEFER');
       }).length;
@@ -199,17 +216,17 @@
 
       const search = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-      if (rawData.length === 0) {
+      if (protocolosData.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" class="px-4 py-8 text-center text-slate-400">
+            <td colspan="8" class="px-4 py-8 text-center text-slate-400">
               Nenhum protocolo encontrado na planilha.
             </td>
           </tr>`;
         return;
       }
 
-      rawData.forEach((item) => {
+      protocolosData.forEach((item) => {
         const pref = getProp(item, 'prefeitura') || '-';
         const emp = getProp(item, 'empresa') || '-';
         const prot = getProp(item, 'protocolo') || '-';
@@ -217,6 +234,8 @@
         const rawStatus = String(getProp(item, 'status') || 'EM ANALISE').trim();
         const exig = String(getProp(item, 'exigência') || getProp(item, 'exigencia') || '-');
         const ultimaAtual = String(getProp(item, 'ultima_atual') || getProp(item, 'ultima_atualizacao') || '-');
+
+        const portalUrl = encontrarUrlPortal(pref, emp);
 
         const matchesSearch = pref.toLowerCase().includes(search) || 
                               emp.toLowerCase().includes(search) || 
@@ -231,26 +250,4 @@
           if (stUp.includes('EXIG') || stUp.includes('PEND')) {
             statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-100 text-rose-700">${rawStatus}</span>`;
           } else if (stUp.includes('APROV') || stUp.includes('CONCLU') || stUp.includes('DEFER')) {
-            statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-700">${rawStatus}</span>`;
-          }
-
-          tr.innerHTML = `
-            <td class="px-4 py-3">${statusBadge}</td>
-            <td class="px-4 py-3 font-semibold text-slate-800">${pref}</td>
-            <td class="px-4 py-3">${emp}</td>
-            <td class="px-4 py-3 font-mono font-medium text-slate-700">${prot}</td>
-            <td class="px-4 py-3 text-slate-600">${analista}</td>
-            <td class="px-4 py-3 text-slate-600">${exig}</td>
-            <td class="px-4 py-3 text-slate-500">${ultimaAtual}</td>
-          `;
-          tbody.appendChild(tr);
-        }
-      });
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      fetchLiveData();
-    });
-  </script>
-</body>
-</html>
+            statusBadge = `<span class="
