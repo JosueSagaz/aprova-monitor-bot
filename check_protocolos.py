@@ -2,7 +2,8 @@ import os
 import requests
 from playwright.sync_api import sync_playwright
 
-WEBAPP_URL = os.environ.get("WEBAPP_URL")
+# Endpoint do Google Apps Script com fallback direto de segurança
+WEBAPP_URL = os.environ.get("WEBAPP_URL") or "https://script.google.com/macros/s/AKfycbxW7CO0VX4dUnzR3YihUWhvPDrSX225L3Rv-AFrVhNQTIZDwkjtZ-V6bCjwccuDEB8r/exec"
 
 def extrair_aprova_digital(page, url, usuario, senha):
     protocolos = []
@@ -58,14 +59,16 @@ def extrair_atende_net(page, url, usuario, senha):
     return protocolos
 
 def main():
+    print(f"Conectando ao WebApp em: {WEBAPP_URL}")
     res = requests.post(WEBAPP_URL, json={"action": "get_portais"})
     data = res.json()
     
     if data.get("status") != "success":
-        print("Erro ao carregar portais cadastrados.")
+        print("Erro ao carregar portais cadastrados:", data)
         return
         
     portais = data.get("data", [])
+    print(f"Portais carregados com sucesso: {len(portais)} configurado(s).")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -95,11 +98,13 @@ def main():
         browser.close()
         
     if todos_resultados:
-        requests.post(WEBAPP_URL, json={
+        res_update = requests.post(WEBAPP_URL, json={
             "action": "update_protocolos",
             "protocolos": todos_resultados
         })
-        print("Planilha atualizada com sucesso!")
+        print("Planilha atualizada com sucesso! Resposta:", res_update.text)
+    else:
+        print("Nenhum protocolo novo ou pendência capturada nesta rodada.")
 
 if __name__ == "__main__":
     main()
