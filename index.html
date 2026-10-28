@@ -154,6 +154,18 @@
     let currentFilter = 'ALL';
     let rawData = [];
 
+    // Helper flexível para buscar valores em chaves maiúsculas, minúsculas ou mistas
+    function getProp(obj, propName) {
+      if (!obj) return '';
+      const target = propName.toLowerCase();
+      for (let key in obj) {
+        if (key.toLowerCase() === target) {
+          return obj[key];
+        }
+      }
+      return '';
+    }
+
     function openConfigModal() {
       const modal = document.getElementById('config-modal');
       const input = document.getElementById('webapp-url-input');
@@ -188,7 +200,6 @@
         if (statusText) statusText.innerText = "A carregar dados do Sheets...";
         if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-blue-500 pulse-amber";
 
-        // Requisição tratada com redirect para evitar travamento de CORS do Apps Script
         const response = await fetch(`${url}?action=getProtocolos`, {
           method: 'GET',
           redirect: 'follow'
@@ -235,9 +246,21 @@
 
     function updateMetrics() {
       const total = rawData.length;
-      const moved = rawData.filter(d => d.movimentado === true || d.movimentado === 'true' || d.MOVIMENTADO === 'SIM').length;
-      const exig = rawData.filter(d => String(d.status || d.STATUS || '').toUpperCase().includes('EXIG')).length;
-      const aprov = rawData.filter(d => String(d.status || d.STATUS || '').toUpperCase().includes('APROV')).length;
+
+      const moved = rawData.filter(d => {
+        const val = String(getProp(d, 'movimentado') || getProp(d, 'alerta') || '').toUpperCase();
+        return val === 'SIM' || val === 'TRUE' || val === '1' || d.movimentado === true;
+      }).length;
+
+      const exig = rawData.filter(d => {
+        const st = String(getProp(d, 'status')).toUpperCase();
+        return st.includes('EXIG') || st.includes('PEND');
+      }).length;
+
+      const aprov = rawData.filter(d => {
+        const st = String(getProp(d, 'status')).toUpperCase();
+        return st.includes('APROV') || st.includes('CONCLU') || st.includes('DEFER');
+      }).length;
 
       document.getElementById('metric-total').innerText = total;
       document.getElementById('metric-moved').innerText = moved;
@@ -276,13 +299,17 @@
       }
 
       rawData.forEach((item) => {
-        const pref = item.prefeitura || item.PREFEITURA || '-';
-        const emp = item.empresa || item.EMPRESA || '-';
-        const prot = item.protocolo || item.PROTOCOLO || '-';
-        const st = String(item.status || item.STATUS || 'EM ANALISE').toUpperCase();
-        const isMoved = item.movimentado === true || item.movimentado === 'true' || item.MOVIMENTADO === 'SIM';
-        const plat = item.plataforma || item.PLATAFORMA || 'ATENDE';
-        const att = item.atualizacao || item.ATUALIZACAO || 'Recente';
+        const pref = getProp(item, 'prefeitura') || getProp(item, 'municipio') || '-';
+        const emp = getProp(item, 'empresa') || getProp(item, 'requerente') || '-';
+        const prot = getProp(item, 'protocolo') || getProp(item, 'processo') || '-';
+        const rawStatus = String(getProp(item, 'status') || 'EM ANALISE').trim();
+        const st = rawStatus.toUpperCase();
+
+        const movVal = String(getProp(item, 'movimentado') || getProp(item, 'alerta') || '').toUpperCase();
+        const isMoved = movVal === 'SIM' || movVal === 'TRUE' || movVal === '1' || item.movimentado === true;
+
+        const plat = getProp(item, 'plataforma') || getProp(item, 'sistema') || 'ATENDE';
+        const att = getProp(item, 'atualizacao') || getProp(item, 'data_atualizacao') || getProp(item, 'data') || 'Recente';
 
         const matchesSearch = pref.toLowerCase().includes(search) || 
                               emp.toLowerCase().includes(search) || 
@@ -290,16 +317,19 @@
 
         let matchesFilter = true;
         if (currentFilter === 'MOVED') matchesFilter = isMoved;
-        if (currentFilter === 'EXIGENCIA') matchesFilter = st.includes('EXIG');
-        if (currentFilter === 'ANALISE') matchesFilter = st.includes('ANALIS');
+        if (currentFilter === 'EXIGENCIA') matchesFilter = st.includes('EXIG') || st.includes('PEND');
+        if (currentFilter === 'ANALISE') matchesFilter = st.includes('ANALIS') || st.includes('TRAMIT');
 
         if (matchesSearch && matchesFilter) {
           const tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50 transition-colors border-b border-slate-100";
 
-          let statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 text-blue-700">${st}</span>`;
-          if (st.includes('EXIG')) statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-100 text-rose-700">EXIGÊNCIA</span>`;
-          if (st.includes('APROV')) statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-700">APROVADO</span>`;
+          let statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 text-blue-700">${rawStatus}</span>`;
+          if (st.includes('EXIG') || st.includes('PEND')) {
+            statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-100 text-rose-700">${rawStatus}</span>`;
+          } else if (st.includes('APROV') || st.includes('CONCLU') || st.includes('DEFER')) {
+            statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-700">${rawStatus}</span>`;
+          }
 
           let movedBadge = isMoved ? `<span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300 ml-2 shadow-xs"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-amber"></span><span>MOVIMENTADO</span></span>` : '';
 
