@@ -216,7 +216,7 @@
         const analista = getProp(item, 'analista') || '-';
         const rawStatus = String(getProp(item, 'status') || 'EM ANALISE').trim();
         const exig = String(getProp(item, 'exigência') || getProp(item, 'exigencia') || '-');
-        const ultimaAtual = String(getProp(item, 'ultima_atual') || '-');
+        const ultimaAtual = String(getProp(item, 'ultima_atual') || getProp(item, 'ultima_atualizacao') || '-');
 
         const matchesSearch = pref.toLowerCase().includes(search) || 
                               emp.toLowerCase().includes(search) || 
