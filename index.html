@@ -164,22 +164,22 @@
       const eClean = String(empresa).trim().toLowerCase();
 
       const match = portaisData.find(p => {
-        const pPortal = String(getProp(p, 'prefeitura') || '').trim().toLowerCase();
-        const ePortal = String(getProp(p, 'empresa') || '').trim().toLowerCase();
+        const pPortal = String(getProp(p, 'PREFEITURA') || '').trim().toLowerCase();
+        const ePortal = String(getProp(p, 'EMPRESA') || '').trim().toLowerCase();
         return pPortal === pClean && ePortal === eClean;
       });
 
       if (match) {
-        return getProp(match, 'url_login') || getProp(match, 'url') || getProp(match, 'link');
+        return getProp(match, 'URL_LOGIN') || getProp(match, 'URL') || '#';
       }
 
       const matchPref = portaisData.find(p => {
-        const pPortal = String(getProp(p, 'prefeitura') || '').trim().toLowerCase();
+        const pPortal = String(getProp(p, 'PREFEITURA') || '').trim().toLowerCase();
         return pPortal === pClean;
       });
 
       if (matchPref) {
-        return getProp(matchPref, 'url_login') || getProp(matchPref, 'url') || getProp(matchPref, 'link');
+        return getProp(matchPref, 'URL_LOGIN') || getProp(matchPref, 'URL') || '#';
       }
 
       return '#';
@@ -189,17 +189,17 @@
       const total = protocolosData.length;
 
       const moved = protocolosData.filter(d => {
-        const val = String(getProp(d, 'notificar') || '').toUpperCase();
+        const val = String(getProp(d, 'NOTIFICAR') || '').toUpperCase();
         return val === 'SIM' || val === 'TRUE' || val === '1';
       }).length;
 
       const exig = protocolosData.filter(d => {
-        const st = String(getProp(d, 'exigência') || getProp(d, 'exigencia')).toUpperCase();
+        const st = String(getProp(d, 'EXIGÊNCIA') || getProp(d, 'EXIGENCIA')).toUpperCase();
         return st && st !== 'NÃO' && st !== 'NAO' && st !== '' && st !== '-';
       }).length;
 
       const aprov = protocolosData.filter(d => {
-        const st = String(getProp(d, 'status')).toUpperCase();
+        const st = String(getProp(d, 'STATUS')).toUpperCase();
         return st.includes('APROV') || st.includes('CONCLU') || st.includes('DEFER');
       }).length;
 
@@ -220,20 +220,20 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="8" class="px-4 py-8 text-center text-slate-400">
-              Nenhum protocolo encontrado na planilha.
+              Nenhum protocolo encontrado na aba Protocolos_Monitorados.
             </td>
           </tr>`;
         return;
       }
 
       protocolosData.forEach((item) => {
-        const pref = getProp(item, 'prefeitura') || '-';
-        const emp = getProp(item, 'empresa') || '-';
-        const prot = getProp(item, 'protocolo') || '-';
-        const analista = getProp(item, 'analista') || '-';
-        const rawStatus = String(getProp(item, 'status') || 'EM ANALISE').trim();
-        const exig = String(getProp(item, 'exigência') || getProp(item, 'exigencia') || '-');
-        const ultimaAtual = String(getProp(item, 'ultima_atual') || getProp(item, 'ultima_atualizacao') || '-');
+        const pref = getProp(item, 'PREFEITURA') || '-';
+        const emp = getProp(item, 'EMPRESA') || '-';
+        const prot = getProp(item, 'PROTOCOLO') || '-';
+        const analista = getProp(item, 'ANALISTA') || '-';
+        const rawStatus = String(getProp(item, 'STATUS') || 'EM ANALISE').trim();
+        const exig = String(getProp(item, 'EXIGÊNCIA') || getProp(item, 'EXIGENCIA') || '-');
+        const ultimaAtual = String(getProp(item, 'ULTIMA_ATUALIZACAO') || '-');
 
         const portalUrl = encontrarUrlPortal(pref, emp);
 
@@ -250,4 +250,31 @@
           if (stUp.includes('EXIG') || stUp.includes('PEND')) {
             statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-100 text-rose-700">${rawStatus}</span>`;
           } else if (stUp.includes('APROV') || stUp.includes('CONCLU') || stUp.includes('DEFER')) {
-            statusBadge = `<span class="
+            statusBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-700">${rawStatus}</span>`;
+          }
+
+          let linkHtml = portalUrl !== '#' 
+            ? `<a href="${portalUrl}" target="_blank" class="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-medium underline"><span>Acessar Portal</span></a>` 
+            : `<span class="text-slate-400">Sem link</span>`;
+
+          tr.innerHTML = `
+            <td class="px-4 py-3">${statusBadge}</td>
+            <td class="px-4 py-3 font-semibold text-slate-800">${pref}</td>
+            <td class="px-4 py-3">${emp}</td>
+            <td class="px-4 py-3 font-mono font-medium text-slate-700">${prot}</td>
+            <td class="px-4 py-3 text-slate-600">${analista}</td>
+            <td class="px-4 py-3 text-slate-600">${exig}</td>
+            <td class="px-4 py-3 text-slate-500">${ultimaAtual}</td>
+            <td class="px-4 py-3 text-right">${linkHtml}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchLiveData();
+    });
+  </script>
+</body>
+</html>
